@@ -34,9 +34,8 @@ var (
 	swfDomain   = "Orders"
 	stdout      bool
 	helpdesk    = "shaun@rapidtrade.biz"
-	logfolder   = "/var/rapiddecider"
 	swfTasklist = "OrderDecider"
-	swfIdentity = "rapid-decider"
+	swfIdentity = "RapidDecider"
 )
 
 func main() {
@@ -46,7 +45,7 @@ func main() {
 
 	// initialise logs
 	Info, Error = file.InitLogs(stdout, "/var/cdecider", "cdump")
-	Info.Println("Starting =================>")
+	Info.Println("Starting rapiddecider =================>")
 
 	// start workflow
 	swfsvc := swf.New(session.New(), &aws.Config{Region: aws.String("us-east-1")})
@@ -99,18 +98,14 @@ func (d *decision) makeDecision(events []*swf.HistoryEvent, ID *string) {
 	for k, event := range events {
 		switch *event.EventType {
 		case "WorkflowExecutionStarted":
-			wfInput := *event.WorkflowExecutionStartedEventAttributes.Input
-			err = d.scheduleNextaActivity(d.tt, "posttoerp", "1", wfInput, "10000", "caboodleserver", "")
+			d.handleWorkflowStart(event)
 			handled = true
 
 		case "ActivityTaskCompleted":
 			_ = "breakpoint"
 			lastActivity := d.getLastScheduledActivity(events)
 			switch string(lastActivity) {
-			case "loadbiqquery":
-				d.handleLoadBigQueryComplete(*event.ActivityTaskCompletedEventAttributes.Result)
-				handled = true
-			case "loadcompleted":
+			case "postorder":
 				d.completeWorkflow("")
 				handled = true
 			}
@@ -163,6 +158,7 @@ func (d *decision) makeDecision(events []*swf.HistoryEvent, ID *string) {
 	// exit goroutine
 }
 
+// ============================== generic functions =========================================
 // getLastScheduledActivity loops through the workflow events in reverse order to pick up the details of the name of the last scheduled activity
 func (d *decision) getLastScheduledActivity(events []*swf.HistoryEvent) string {
 	for _, event := range events {
@@ -173,48 +169,7 @@ func (d *decision) getLastScheduledActivity(events []*swf.HistoryEvent) string {
 	return ""
 }
 
-// handleLoadBigQueryComplete gets result JSON and starts loadcompleted using the supplierid as the tasklist
-func (d *decision) handleLoadBigQueryComplete(jsonstr string) error {
-	_ = "breakpoint"
-	var rslt result
-	err := json.Unmarshal([]byte(jsonstr), &rslt)
-	if err != nil {
-		return err
-	}
-	err = d.scheduleNextaActivity(d.tt, "loadcompleted", "2", rslt.File, "10000", rslt.SupplierID, "")
-	return err
-}
-
 func (d *decision) handleTimerFired(k int, es []*swf.HistoryEvent) error {
-	// Here if a timer has been fired, find previous event and deal with it. Look for data in the control
-	/*
-		// ok we have an timer fired so get the starteventid and find the data associated with it
-		evID := es[k].TimerFiredEventAttributes.StartedEventId
-		timerID := es[k].TimerFiredEventAttributes.TimerId
-
-		var result string
-
-		for _, ev := range es {
-			if *ev.EventId == *evID {
-				// found the timer start which has the control field
-				// which holds the result from the activity before the timer
-				result = *ev.TimerStartedEventAttributes.Control
-				break
-			}
-		}
-
-			ar := &ActivityResult{
-				ResultType:   *timerID, // eor example amicreate-timer so business logic can make decisions
-				ResultOutput: result,   // the control field of the event that started the timer
-				ResultErr:    "",
-			}
-			// extract the data, create an activity result struct and pass it to bubiness logic
-
-			fmt.Printf("activity result calling business logic from timer fired\n")
-			fmt.Println(ar)
-			// decide next steps
-			//return d.businessLogic(ar)
-	*/
 	return nil
 }
 
@@ -337,5 +292,32 @@ func (d *decision) scheduleNextaActivity(tt string, name string, version string,
 		ExecutionContext: aws.String(context),
 	}
 	_, err := d.svc.RespondDecisionTaskCompleted(params)
+	return err
+}
+
+func (d *decision) getJSON(input string) map[string]interface{} {
+	var data interface{}
+	json.Unmarshal([]byte(input), &data)
+	m := data.(map[string]interface{})
+	return m
+}
+
+//======================================= handle routines ==================================================
+// handleLoadBigQueryComplete gets result JSON and starts loadcompleted using the supplierid as the tasklist
+func (d *decision) handlePostorderComplete(jsonstr string) error {
+	var rslt result
+	err := json.Unmarshal([]byte(jsonstr), &rslt)
+	if err != nil {
+		return err
+	}
+	err = d.scheduleNextaActivity(d.tt, "loadcompleted", "2", rslt.File, "10000", rslt.SupplierID, "")
+	return err
+}
+
+func (d *decision) handleWorkflowStart(event *swf.HistoryEvent) error {
+	wfInput := *event.WorkflowExecutionStartedEventAttributes.Input
+	json := d.getJSON(wfInput)
+	supplierid, _ := json["SupplierID"].(string)
+	err := d.scheduleNextaActivity(d.tt, "postorder", "1", wfInput, "10000", supplierid, "")
 	return err
 }
