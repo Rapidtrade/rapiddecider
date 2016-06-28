@@ -9,6 +9,32 @@ The workflow will make the following decisions:
 If the workflow either times out of fails, the decider will email the help desk.  
 
 # Installing source and building  
+
+First download the source code and build  
     
-    cd $GOPATH/github.com/Rapidtrade
+    cd $GOPATH/github.com/Rapidtrade  
+    git clone https://github.com/Rapidtrade/rapiddecider.git  
+    cd rapiddecider  
+    go get -v  
+    go build rapiddecider.go  
+    
+Now get folders ready  
+
+    sudo mkdir /opt/rapiddecider  
+    sudo chmod 777 -R /opt/rapiddecider
+    sudo mkdir /var/rapiddecider  
+    sudo chmod 777 -R /var/rapiddecider
+    sudo cp rapiddecider /opt/rapiddecider
+    
+Now lets check that it works, after running, you should see:  
+
+    cd /opt/rapiddecider
+    rapiddecider -stdout
+    INFO: 2016/06/28 14:45:37 rapiddecider.go:48: Starting rapiddecider =================>
+
+# Setup SystemD  
+
+Setup your SystemD service called rapiddecider.service.  
+You can follow here: http://rapidtrade.screenstepslive.com/s/standards/m/16189/l/559609-setup-a-systemd-service
+    
     
