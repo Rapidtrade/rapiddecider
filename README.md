@@ -16,6 +16,8 @@ First download the source code and build
     git clone https://github.com/Rapidtrade/rapiddecider.git  
     cd rapiddecider  
     go get -v  
+    go get github.com/jmespath/go-jmespath  
+    go get github.com/go-ini/ini  
     go build rapiddecider.go  
     
 Now get folders ready  
