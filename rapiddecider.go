@@ -44,7 +44,7 @@ func main() {
 	flag.Parse()
 
 	// initialise logs
-	Info, Error = file.InitLogs(stdout, "/var/cdecider", "cdump")
+	Info, Error = file.InitLogs(stdout, "/var/rapiddecider", "rapiddecider")
 	Info.Println("Starting rapiddecider =================>")
 
 	// start workflow
