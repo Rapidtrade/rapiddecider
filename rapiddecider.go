@@ -1,3 +1,7 @@
+// godebug run -instrument github.com/CaboodleData/gotools/workflow rapiddecider.go -stdout
+// env GOOS=linux GOARCH=386 go build -v rapiddecider.go
+// scp -i '/Users/shaun/Google Drive/Keys for Encryption etc/Amazon/RapidtradeDB3.pem' rapiddecider ubuntu@52.204.248.107:/opt/rapiddecider
+
 package main
 
 import (
@@ -71,6 +75,8 @@ func main() {
 		// if we do not receive a task token then 60 second time out occured so try again
 		if resp.TaskToken != nil {
 			if *resp.TaskToken != "" {
+				// Re-initialise logs so we get latest date
+				Info, Error = file.InitLogs(stdout, "/var/rapiddecider", "rapiddecider")
 				d := &decision{
 					svc:        swfsvc,
 					tt:         *resp.TaskToken,
@@ -196,7 +202,7 @@ func (d *decision) setTimer(sec, data, id string) error {
 
 // handleTimeout will send an email if the first timeout, then set marker so next time we dont email
 func (d *decision) handleTimeout() error {
-	to, _ := d.emailError("timeout")
+	to, _ := d.emailError("Activity Timeout")
 	params := &swf.RespondDecisionTaskCompletedInput{
 		TaskToken: aws.String(d.tt),
 		Decisions: []*swf.Decision{
