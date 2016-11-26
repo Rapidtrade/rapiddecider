@@ -69,7 +69,7 @@ func main() {
 		if err != nil {
 			amazon.SESSendEmail("support@rapidtrade.biz", helpdesk, swfIdentity+" unable to pole", err.Error())
 			Error.Printf("error: unable to poll for decision: %v\n", err)
-			panic("Broken, check logs")
+			//panic("Broken, check logs")
 		}
 
 		// if we do not receive a task token then 60 second time out occured so try again
@@ -104,7 +104,10 @@ func (d *decision) makeDecision(events []*swf.HistoryEvent, ID *string) {
 	for k, event := range events {
 		switch *event.EventType {
 		case "WorkflowExecutionStarted":
-			d.handleWorkflowStart(event)
+			err = d.handleWorkflowStart(event)
+			if err != nil {
+				d.failWorkflow(*event.ActivityTaskFailedEventAttributes.Reason, err)
+			}
 			handled = true
 
 		case "ActivityTaskCompleted":
@@ -301,11 +304,14 @@ func (d *decision) scheduleNextaActivity(tt string, name string, version string,
 	return err
 }
 
-func (d *decision) getJSON(input string) map[string]interface{} {
+func (d *decision) getJSON(input string) (map[string]interface{}, error) {
 	var data interface{}
-	json.Unmarshal([]byte(input), &data)
+	err := json.Unmarshal([]byte(input), &data)
+	if err != nil {
+		return nil, err
+	}
 	m := data.(map[string]interface{})
-	return m
+	return m, err
 }
 
 //======================================= handle routines ==================================================
@@ -322,8 +328,11 @@ func (d *decision) handlePostorderComplete(jsonstr string) error {
 
 func (d *decision) handleWorkflowStart(event *swf.HistoryEvent) error {
 	wfInput := *event.WorkflowExecutionStartedEventAttributes.Input
-	json := d.getJSON(wfInput)
+	json, err := d.getJSON(wfInput)
+	if err != nil {
+		return err
+	}
 	supplierid, _ := json["SupplierID"].(string)
-	err := d.scheduleNextaActivity(d.tt, "postorder", "1", wfInput, "10000", supplierid, "")
+	err = d.scheduleNextaActivity(d.tt, "postorder", "1", wfInput, "10000", supplierid, "")
 	return err
 }
